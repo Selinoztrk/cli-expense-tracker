@@ -172,6 +172,45 @@ class ExpenseTracker:
             print(f"Expenses exported successfully to '{filename}'")
         except Exception as e:
             print(f"An error occurred while exporting: {e}")
+    
+    def add_category(self, category_name):
+        try:
+            self.cursor.execute("INSERT INTO categories (name) VALUES (?)", (category_name,))
+            self.conn.commit()
+            print(f"Category '{category_name}' added successfully.")
+        except sqlite3.IntegrityError:
+            print(f"Category '{category_name}' already exists.")
+
+    def remove_category(self, category_name):
+        self.cursor.execute("SELECT id FROM categories WHERE name = ?", (category_name,))
+        result = self.cursor.fetchone()
+        if not result:
+            print(f"Category '{category_name}' does not exist.")
+            return
+
+        category_id = result[0]
+
+        # Check if there is a connected expense
+        self.cursor.execute("SELECT COUNT(*) FROM expenses WHERE category_id = ?", (category_id,))
+        count = self.cursor.fetchone()[0]
+        if count > 0:
+            print(f"Cannot delete category '{category_name}' because it's used in {count} expense(s).")
+            return
+
+        self.cursor.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+        self.conn.commit()
+        print(f"Category '{category_name}' deleted successfully.")
+
+    def list_categories(self):
+        self.cursor.execute("SELECT name FROM categories ORDER BY name")
+        categories = self.cursor.fetchall()
+        if not categories:
+            print("No categories found.")
+        else:
+            print("Categories:")
+            for i, cat in enumerate(categories, 1):
+                print(f"{i}. {cat[0]}")
+
 
     def exit_program(self):
         self.conn.close()
@@ -192,9 +231,10 @@ def main():
         print("7. Search Expenses by Description")
         print("8. Set Monthly Budget Limit")
         print("9. Export Expenses to CSV")
-        print("10. Exit")
+        print("10. Manage Categories")
+        print("11. Exit")
 
-        choice = input("Enter your choice (1-10): ")
+        choice = input("Enter your choice (1-11): ")
 
         if choice == "1":
             date = input("Enter the date (YYYY-MM-DD): ")
@@ -236,6 +276,25 @@ def main():
                 filename = "expenses_export.csv"
             tracker.export_to_csv(filename)
         elif choice == "10":
+            print("\nCategory Management:")
+            print("1. Add Category")
+            print("2. Remove Category")
+            print("3. List Categories")
+            sub_choice = input("Choose an option (1-3): ")
+
+            if sub_choice == "1":
+                name = input("Enter new category name: ").strip()
+                if name:
+                    tracker.add_category(name)
+            elif sub_choice == "2":
+                name = input("Enter category name to remove: ").strip()
+                if name:
+                    tracker.remove_category(name)
+            elif sub_choice == "3":
+                tracker.list_categories()
+            else:
+                print("Invalid option.")
+        elif choice == "11":
             tracker.exit_program()
             break
 
