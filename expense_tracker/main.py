@@ -1,7 +1,5 @@
+import sqlite3
 from datetime import datetime
-import json
-import os
-
 
 class Expense:
     def __init__(self, date, description, amount, category):
@@ -9,135 +7,117 @@ class Expense:
         self.description = description
         self.amount = amount
         self.category = category
-    
-    def to_dict(self):
-        return {
-            "date": self.date,
-            "description": self.description,
-            "amount": self.amount,
-            "category": self.category
-        }
-
-    @staticmethod
-    def from_dict(data):
-        return Expense(
-            data["date"],
-            data["description"],
-            data["amount"],
-            data.get("category", "Uncategorized")
-        )
 
 
 class ExpenseTracker:
     def __init__(self):
-        self.expenses = []
+        self.conn = sqlite3.connect("expenses.db")
+        self.cursor = self.conn.cursor()
+        self.create_table()
         self.budget_limit = None
-        self.load_from_file()
-    
+
+    def create_table(self):
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT,
+                description TEXT,
+                amount REAL,
+                category TEXT
+            )
+        ''')
+        self.conn.commit()
+
     def add_expense(self, expense):
-        self.expenses.append(expense)
+        self.cursor.execute("INSERT INTO expenses (date, description, amount, category) VALUES (?, ?, ?, ?)",
+                            (expense.date, expense.description, expense.amount, expense.category))
+        self.conn.commit()
         self.check_budget_limit()
-    
+
     def remove_expense(self, index):
-        if 0 <= index < len(self.expenses):
-            del self.expenses[index]
+        expenses = self.get_all_expenses()
+        if 0 <= index < len(expenses):
+            expense_id = expenses[index][0]
+            self.cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+            self.conn.commit()
             print("Expense removed successfully.")
         else:
             print("Invalid expense index.")
 
+    def get_all_expenses(self):
+        self.cursor.execute("SELECT * FROM expenses")
+        return self.cursor.fetchall()
+
     def view_expenses(self):
-        if len(self.expenses) == 0:
+        expenses = self.get_all_expenses()
+        if not expenses:
             print("No expenses found.")
         else:
-            print("Expense List: ")
-            for i, expense in enumerate(self.expenses, start=1):
-                print(f"{i}. Date: {expense.date}, Description: {expense.description}, Amount: ${expense.amount:.2f}, Category: {expense.category}")
-    
-    def total_expenses(self):
-        total = sum(expense.amount for expense in self.expenses)
-        print(f"Total Expenses: ${total:.2f}")
-    
-    def expenses_by_category(self):
-        if not self.expenses:
-            print("No expenses found.")
-            return
+            print("Expense List:")
+            for i, expense in enumerate(expenses, start=1):
+                print(f"{i}. Date: {expense[1]}, Description: {expense[2]}, Amount: ${expense[3]:.2f}, Category: {expense[4]}")
 
-        category_totals = {}
-        for expense in self.expenses:
-            category_totals[expense.category] = category_totals.get(expense.category, 0) + expense.amount
-        
-        print("Expenses by Category:")
-        for category, total in category_totals.items():
-            print(f"{category}: ${total:.2f}")
-    
+    def total_expenses(self):
+        self.cursor.execute("SELECT SUM(amount) FROM expenses")
+        total = self.cursor.fetchone()[0] or 0
+        print(f"Total Expenses: ${total:.2f}")
+
+    def expenses_by_category(self):
+        self.cursor.execute("SELECT category, SUM(amount) FROM expenses GROUP BY category")
+        rows = self.cursor.fetchall()
+        if not rows:
+            print("No expenses found.")
+        else:
+            print("Expenses by Category:")
+            for category, total in rows:
+                print(f"{category}: ${total:.2f}")
+
     def filter_by_date_range(self, start_date_str, end_date_str):
         try:
-            start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-            end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+            datetime.strptime(start_date_str, "%Y-%m-%d")
+            datetime.strptime(end_date_str, "%Y-%m-%d")
         except ValueError:
             print("Invalid date format. Please use YYYY-MM-DD.")
             return
 
-        filtered = [e for e in self.expenses if start_date <= datetime.strptime(e.date, "%Y-%m-%d") <= end_date]
+        self.cursor.execute("SELECT * FROM expenses WHERE date BETWEEN ? AND ?", (start_date_str, end_date_str))
+        rows = self.cursor.fetchall()
 
-        if not filtered:
+        if not rows:
             print("No expenses found in this date range.")
         else:
             print(f"Expenses from {start_date_str} to {end_date_str}:")
-            for i, expense in enumerate(filtered, start=1):
-                print(f"{i}. Date: {expense.date}, Description: {expense.description}, Amount: ${expense.amount:.2f}, Category: {expense.category}")
-    
+            for i, expense in enumerate(rows, start=1):
+                print(f"{i}. Date: {expense[1]}, Description: {expense[2]}, Amount: ${expense[3]:.2f}, Category: {expense[4]}")
+
     def search_by_description(self, keyword):
-        results = [e for e in self.expenses if keyword.lower() in e.description.lower()]
-        
+        self.cursor.execute("SELECT * FROM expenses WHERE description LIKE ?", (f"%{keyword}%",))
+        results = self.cursor.fetchall()
+
         if not results:
             print(f"No expenses found with description containing '{keyword}'.")
         else:
             print(f"Expenses matching '{keyword}':")
             for i, expense in enumerate(results, start=1):
-                print(f"{i}. Date: {expense.date}, Description: {expense.description}, Amount: ${expense.amount:.2f}, Category: {expense.category}")
-    
+                print(f"{i}. Date: {expense[1]}, Description: {expense[2]}, Amount: ${expense[3]:.2f}, Category: {expense[4]}")
+
     def set_budget_limit(self, limit):
         self.budget_limit = limit
         print(f"Monthly budget set to ${limit:.2f}")
-    
+
     def check_budget_limit(self):
         if self.budget_limit is None:
             return
 
-        from datetime import datetime
-
         current_month = datetime.now().strftime("%Y-%m")
-        monthly_total = 0
+        self.cursor.execute("SELECT SUM(amount) FROM expenses WHERE strftime('%Y-%m', date) = ?", (current_month,))
+        total = self.cursor.fetchone()[0] or 0
 
-        for expense in self.expenses:
-            if expense.date.startswith(current_month):  # YYYY-MM format
-                monthly_total += expense.amount
-
-        if monthly_total > self.budget_limit:
-            print(f"⚠️ Budget exceeded! You've spent ${monthly_total:.2f} this month (limit: ${self.budget_limit:.2f})")
-    
-    def save_to_file(self, filename="expenses.json"):
-        data = [expense.to_dict() for expense in self.expenses]
-        with open(filename, "w") as f:
-            json.dump(data, f, indent=4)
-        print("✅ Expenses saved to file.")
-
-    def load_from_file(self, filename="expenses.json"):
-        if os.path.exists(filename):
-            with open(filename, "r") as f:
-                try:
-                    data = json.load(f)
-                    self.expenses = [Expense.from_dict(item) for item in data]
-                    print(f"📂 Loaded {len(self.expenses)} expenses from file.")
-                except json.JSONDecodeError:
-                    print("⚠️ Could not read file, starting with empty list.")
-                    self.expenses = []
-        else:
-            print("📁 No saved data found.")
+        if total > self.budget_limit:
+            print(f"⚠️ Budget exceeded! You've spent ${total:.2f} this month (limit: ${self.budget_limit:.2f})")
 
     def exit_program(self):
-        self.save_to_file()
+        self.conn.close()
         print("Goodbye!")
 
 
@@ -167,7 +147,7 @@ def main():
             tracker.add_expense(expense)
             print("Expense added successfully.")
         elif choice == "2":
-            index = int(input("Enter the expense index to remove: ")) -1
+            index = int(input("Enter the expense index to remove: ")) - 1
             tracker.remove_expense(index)
         elif choice == "3":
             tracker.view_expenses()
