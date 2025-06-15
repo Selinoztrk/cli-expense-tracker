@@ -13,24 +13,43 @@ class ExpenseTracker:
     def __init__(self):
         self.conn = sqlite3.connect("expenses.db")
         self.cursor = self.conn.cursor()
-        self.create_table()
+        self.create_tables()
         self.budget_limit = None
 
-    def create_table(self):
+    def create_tables(self):
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
+            )
+        ''')
+
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT,
                 description TEXT,
                 amount REAL,
-                category TEXT
+                category_id INTEGER,
+                FOREIGN KEY (category_id) REFERENCES categories(id)
             )
         ''')
         self.conn.commit()
 
+    def get_or_create_category_id(self, category_name):
+        self.cursor.execute("SELECT id FROM categories WHERE name = ?", (category_name,))
+        result = self.cursor.fetchone()
+        if result:
+            return result[0]
+        else:
+            self.cursor.execute("INSERT INTO categories (name) VALUES (?)", (category_name,))
+            self.conn.commit()
+            return self.cursor.lastrowid
+
     def add_expense(self, expense):
-        self.cursor.execute("INSERT INTO expenses (date, description, amount, category) VALUES (?, ?, ?, ?)",
-                            (expense.date, expense.description, expense.amount, expense.category))
+        category_id = self.get_or_create_category_id(expense.category)
+        self.cursor.execute("INSERT INTO expenses (date, description, amount, category_id) VALUES (?, ?, ?, ?)",
+                            (expense.date, expense.description, expense.amount, category_id))
         self.conn.commit()
         self.check_budget_limit()
 
@@ -45,7 +64,12 @@ class ExpenseTracker:
             print("Invalid expense index.")
 
     def get_all_expenses(self):
-        self.cursor.execute("SELECT * FROM expenses")
+        self.cursor.execute("""
+            SELECT e.id, e.date, e.description, e.amount, c.name
+            FROM expenses e
+            LEFT JOIN categories c ON e.category_id = c.id
+            ORDER BY e.date DESC
+        """)
         return self.cursor.fetchall()
 
     def view_expenses(self):
@@ -63,7 +87,12 @@ class ExpenseTracker:
         print(f"Total Expenses: ${total:.2f}")
 
     def expenses_by_category(self):
-        self.cursor.execute("SELECT category, SUM(amount) FROM expenses GROUP BY category")
+        self.cursor.execute("""
+            SELECT c.name, SUM(e.amount)
+            FROM expenses e
+            LEFT JOIN categories c ON e.category_id = c.id
+            GROUP BY e.category_id
+        """)
         rows = self.cursor.fetchall()
         if not rows:
             print("No expenses found.")
@@ -80,7 +109,13 @@ class ExpenseTracker:
             print("Invalid date format. Please use YYYY-MM-DD.")
             return
 
-        self.cursor.execute("SELECT * FROM expenses WHERE date BETWEEN ? AND ?", (start_date_str, end_date_str))
+        self.cursor.execute("""
+            SELECT e.date, e.description, e.amount, c.name
+            FROM expenses e
+            LEFT JOIN categories c ON e.category_id = c.id
+            WHERE date BETWEEN ? AND ?
+            ORDER BY e.date
+        """, (start_date_str, end_date_str))
         rows = self.cursor.fetchall()
 
         if not rows:
@@ -88,10 +123,15 @@ class ExpenseTracker:
         else:
             print(f"Expenses from {start_date_str} to {end_date_str}:")
             for i, expense in enumerate(rows, start=1):
-                print(f"{i}. Date: {expense[1]}, Description: {expense[2]}, Amount: ${expense[3]:.2f}, Category: {expense[4]}")
+                print(f"{i}. Date: {expense[0]}, Description: {expense[1]}, Amount: ${expense[2]:.2f}, Category: {expense[3]}")
 
     def search_by_description(self, keyword):
-        self.cursor.execute("SELECT * FROM expenses WHERE description LIKE ?", (f"%{keyword}%",))
+        self.cursor.execute("""
+            SELECT e.date, e.description, e.amount, c.name
+            FROM expenses e
+            LEFT JOIN categories c ON e.category_id = c.id
+            WHERE description LIKE ?
+        """, (f"%{keyword}%",))
         results = self.cursor.fetchall()
 
         if not results:
@@ -99,7 +139,7 @@ class ExpenseTracker:
         else:
             print(f"Expenses matching '{keyword}':")
             for i, expense in enumerate(results, start=1):
-                print(f"{i}. Date: {expense[1]}, Description: {expense[2]}, Amount: ${expense[3]:.2f}, Category: {expense[4]}")
+                print(f"{i}. Date: {expense[0]}, Description: {expense[1]}, Amount: ${expense[2]:.2f}, Category: {expense[3]}")
 
     def set_budget_limit(self, limit):
         self.budget_limit = limit
@@ -141,7 +181,11 @@ def main():
         if choice == "1":
             date = input("Enter the date (YYYY-MM-DD): ")
             description = input("Enter the description: ")
-            amount = float(input("Enter the amount: "))
+            try:
+                amount = float(input("Enter the amount: "))
+            except ValueError:
+                print("Invalid amount.")
+                continue
             category = input("Enter the category: ")
             expense = Expense(date, description, amount, category)
             tracker.add_expense(expense)
