@@ -1,4 +1,5 @@
 import sqlite3
+import csv
 from datetime import datetime
 
 class Expense:
@@ -155,6 +156,22 @@ class ExpenseTracker:
 
         if total > self.budget_limit:
             print(f"⚠️ Budget exceeded! You've spent ${total:.2f} this month (limit: ${self.budget_limit:.2f})")
+    
+    def export_to_csv(self, filename="expenses_export.csv"):
+        expenses = self.get_all_expenses()
+        if not expenses:
+            print("No expenses to export.")
+            return
+
+        try:
+            with open(filename, mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                writer.writerow(["ID", "Date", "Description", "Amount", "Category"])
+                for expense in expenses:
+                    writer.writerow(expense)
+            print(f"Expenses exported successfully to '{filename}'")
+        except Exception as e:
+            print(f"An error occurred while exporting: {e}")
 
     def exit_program(self):
         self.conn.close()
@@ -174,9 +191,10 @@ def main():
         print("6. Filter Expenses by Date Range")
         print("7. Search Expenses by Description")
         print("8. Set Monthly Budget Limit")
-        print("9. Exit")
+        print("9. Export Expenses to CSV")
+        print("10. Exit")
 
-        choice = input("Enter your choice (1-9): ")
+        choice = input("Enter your choice (1-10): ")
 
         if choice == "1":
             date = input("Enter the date (YYYY-MM-DD): ")
@@ -213,6 +231,11 @@ def main():
             except ValueError:
                 print("Please enter a valid number.")
         elif choice == "9":
+            filename = input("Enter filename (default: expenses_export.csv): ").strip()
+            if filename == "":
+                filename = "expenses_export.csv"
+            tracker.export_to_csv(filename)
+        elif choice == "10":
             tracker.exit_program()
             break
 
