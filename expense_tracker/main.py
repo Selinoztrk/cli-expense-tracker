@@ -1,6 +1,11 @@
 import sqlite3
 import csv
 from datetime import datetime
+from plot_utils import plot_expense_by_category, plot_monthly_expenses
+from colorama import init, Fore, Style
+
+init(autoreset=True)
+
 
 class Expense:
     def __init__(self, date, description, amount, category):
@@ -53,6 +58,7 @@ class ExpenseTracker:
                             (expense.date, expense.description, expense.amount, category_id))
         self.conn.commit()
         self.check_budget_limit()
+        print(Fore.GREEN + "Expense added successfully.")
 
     def remove_expense(self, index):
         expenses = self.get_all_expenses()
@@ -60,9 +66,9 @@ class ExpenseTracker:
             expense_id = expenses[index][0]
             self.cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
             self.conn.commit()
-            print("Expense removed successfully.")
+            print(Fore.GREEN + "Expense removed successfully.")
         else:
-            print("Invalid expense index.")
+            print(Fore.RED + "Invalid expense index.")
 
     def get_all_expenses(self):
         self.cursor.execute("""
@@ -76,16 +82,16 @@ class ExpenseTracker:
     def view_expenses(self):
         expenses = self.get_all_expenses()
         if not expenses:
-            print("No expenses found.")
+            print(Fore.YELLOW + "No expenses found.")
         else:
-            print("Expense List:")
+            print(Fore.CYAN + "Expense List:")
             for i, expense in enumerate(expenses, start=1):
-                print(f"{i}. Date: {expense[1]}, Description: {expense[2]}, Amount: ${expense[3]:.2f}, Category: {expense[4]}")
+                print(Fore.CYAN + f"{i}. Date: {expense[1]}, Description: {expense[2]}, Amount: ${expense[3]:.2f}, Category: {expense[4]}")
 
     def total_expenses(self):
         self.cursor.execute("SELECT SUM(amount) FROM expenses")
         total = self.cursor.fetchone()[0] or 0
-        print(f"Total Expenses: ${total:.2f}")
+        print(Fore.GREEN + f"Total Expenses: ${total:.2f}")
 
     def expenses_by_category(self):
         self.cursor.execute("""
@@ -96,18 +102,18 @@ class ExpenseTracker:
         """)
         rows = self.cursor.fetchall()
         if not rows:
-            print("No expenses found.")
+            print(Fore.YELLOW + "No expenses found.")
         else:
-            print("Expenses by Category:")
+            print(Fore.MAGENTA + "Expenses by Category:")
             for category, total in rows:
-                print(f"{category}: ${total:.2f}")
+                print(Fore.MAGENTA + f"{category}: ${total:.2f}")
 
     def filter_by_date_range(self, start_date_str, end_date_str):
         try:
             datetime.strptime(start_date_str, "%Y-%m-%d")
             datetime.strptime(end_date_str, "%Y-%m-%d")
         except ValueError:
-            print("Invalid date format. Please use YYYY-MM-DD.")
+            print(Fore.RED + "Invalid date format. Please use YYYY-MM-DD.")
             return
 
         self.cursor.execute("""
@@ -120,9 +126,9 @@ class ExpenseTracker:
         rows = self.cursor.fetchall()
 
         if not rows:
-            print("No expenses found in this date range.")
+            print(Fore.YELLOW + "No expenses found in this date range.")
         else:
-            print(f"Expenses from {start_date_str} to {end_date_str}:")
+            print(Fore.BLUE + f"Expenses from {start_date_str} to {end_date_str}:")
             for i, expense in enumerate(rows, start=1):
                 print(f"{i}. Date: {expense[0]}, Description: {expense[1]}, Amount: ${expense[2]:.2f}, Category: {expense[3]}")
 
@@ -136,15 +142,15 @@ class ExpenseTracker:
         results = self.cursor.fetchall()
 
         if not results:
-            print(f"No expenses found with description containing '{keyword}'.")
+            print(Fore.YELLOW + f"No expenses found with description containing '{keyword}'.")
         else:
-            print(f"Expenses matching '{keyword}':")
+            print(Fore.YELLOW + f"Expenses matching '{keyword}':")
             for i, expense in enumerate(results, start=1):
                 print(f"{i}. Date: {expense[0]}, Description: {expense[1]}, Amount: ${expense[2]:.2f}, Category: {expense[3]}")
 
     def set_budget_limit(self, limit):
         self.budget_limit = limit
-        print(f"Monthly budget set to ${limit:.2f}")
+        print(Fore.BLUE + f"Monthly budget set to ${limit:.2f}")
 
     def check_budget_limit(self):
         if self.budget_limit is None:
@@ -155,12 +161,12 @@ class ExpenseTracker:
         total = self.cursor.fetchone()[0] or 0
 
         if total > self.budget_limit:
-            print(f"⚠️ Budget exceeded! You've spent ${total:.2f} this month (limit: ${self.budget_limit:.2f})")
+            print(Fore.RED + f"⚠️ Budget exceeded! You've spent ${total:.2f} this month (limit: ${self.budget_limit:.2f})")
     
     def export_to_csv(self, filename="expenses_export.csv"):
         expenses = self.get_all_expenses()
         if not expenses:
-            print("No expenses to export.")
+            print(Fore.YELLOW + "No expenses to export.")
             return
 
         try:
@@ -169,23 +175,23 @@ class ExpenseTracker:
                 writer.writerow(["ID", "Date", "Description", "Amount", "Category"])
                 for expense in expenses:
                     writer.writerow(expense)
-            print(f"Expenses exported successfully to '{filename}'")
+            print(Fore.GREEN + f"Expenses exported successfully to '{filename}'")
         except Exception as e:
-            print(f"An error occurred while exporting: {e}")
+            print(Fore.RED + f"An error occurred while exporting: {e}")
     
     def add_category(self, category_name):
         try:
             self.cursor.execute("INSERT INTO categories (name) VALUES (?)", (category_name,))
             self.conn.commit()
-            print(f"Category '{category_name}' added successfully.")
+            print(Fore.GREEN + f"Category '{category_name}' added successfully.")
         except sqlite3.IntegrityError:
-            print(f"Category '{category_name}' already exists.")
+            print(Fore.YELLOW + f"Category '{category_name}' already exists.")
 
     def remove_category(self, category_name):
         self.cursor.execute("SELECT id FROM categories WHERE name = ?", (category_name,))
         result = self.cursor.fetchone()
         if not result:
-            print(f"Category '{category_name}' does not exist.")
+            print(Fore.YELLOW + f"Category '{category_name}' does not exist.")
             return
 
         category_id = result[0]
@@ -194,18 +200,18 @@ class ExpenseTracker:
         self.cursor.execute("SELECT COUNT(*) FROM expenses WHERE category_id = ?", (category_id,))
         count = self.cursor.fetchone()[0]
         if count > 0:
-            print(f"Cannot delete category '{category_name}' because it's used in {count} expense(s).")
+            print(Fore.RED + f"Cannot delete category '{category_name}' because it's used in {count} expense(s).")
             return
 
         self.cursor.execute("DELETE FROM categories WHERE id = ?", (category_id,))
         self.conn.commit()
-        print(f"Category '{category_name}' deleted successfully.")
+        print(Fore.YELLOW + f"Category '{category_name}' deleted successfully.")
 
     def list_categories(self):
         self.cursor.execute("SELECT name FROM categories ORDER BY name")
         categories = self.cursor.fetchall()
         if not categories:
-            print("No categories found.")
+            print(Fore.YELLOW + "No categories found.")
         else:
             print("Categories:")
             for i, cat in enumerate(categories, 1):
@@ -214,15 +220,15 @@ class ExpenseTracker:
 
     def exit_program(self):
         self.conn.close()
-        print("Goodbye!")
+        print(Fore.YELLOW + "Goodbye!")
 
 
 def main():
     tracker = ExpenseTracker()
 
     while True:
-        print("\nExpense Tracker Menu:")
-        print("1. Add Expense")
+        print(Fore.YELLOW + "\nExpense Tracker Menu:")
+        print(Fore.YELLOW + "1. Add Expense")
         print("2. Remove Expense")
         print("3. View Expenses")
         print("4. Total Expenses")
@@ -232,9 +238,11 @@ def main():
         print("8. Set Monthly Budget Limit")
         print("9. Export Expenses to CSV")
         print("10. Manage Categories")
-        print("11. Exit")
+        print("11. Show Category Pie Chart")
+        print("12. Show Monthly Bar Chart")
+        print("13. Exit")
 
-        choice = input("Enter your choice (1-11): ")
+        choice = input(Fore.CYAN + "Enter your choice (1-13): ")
 
         if choice == "1":
             date = input("Enter the date (YYYY-MM-DD): ")
@@ -242,12 +250,12 @@ def main():
             try:
                 amount = float(input("Enter the amount: "))
             except ValueError:
-                print("Invalid amount.")
+                print(Fore.RED + "Invalid amount.")
                 continue
             category = input("Enter the category: ")
             expense = Expense(date, description, amount, category)
             tracker.add_expense(expense)
-            print("Expense added successfully.")
+            print(Fore.GREEN + "Expense added successfully.")
         elif choice == "2":
             index = int(input("Enter the expense index to remove: ")) - 1
             tracker.remove_expense(index)
@@ -269,17 +277,17 @@ def main():
                 limit = float(input("Enter your monthly budget limit: "))
                 tracker.set_budget_limit(limit)
             except ValueError:
-                print("Please enter a valid number.")
+                print(Fore.RED + "Please enter a valid number.")
         elif choice == "9":
             filename = input("Enter filename (default: expenses_export.csv): ").strip()
             if filename == "":
                 filename = "expenses_export.csv"
             tracker.export_to_csv(filename)
         elif choice == "10":
-            print("\nCategory Management:")
-            print("1. Add Category")
-            print("2. Remove Category")
-            print("3. List Categories")
+            print(Fore.MAGENTA + "\nCategory Management:")
+            print(Fore.BLUE + "1. Add Category")
+            print(Fore.BLUE + "2. Remove Category")
+            print(Fore.BLUE + "3. List Categories")
             sub_choice = input("Choose an option (1-3): ")
 
             if sub_choice == "1":
@@ -293,8 +301,12 @@ def main():
             elif sub_choice == "3":
                 tracker.list_categories()
             else:
-                print("Invalid option.")
+                print(Fore.RED + "Invalid option.")
         elif choice == "11":
+            plot_expense_by_category(tracker.cursor)
+        elif choice == "12":
+            plot_monthly_expenses(tracker.cursor)
+        elif choice == "13":
             tracker.exit_program()
             break
 
