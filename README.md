@@ -23,7 +23,7 @@ A terminal-based Expense Tracker application built with Python and SQLite. It al
 
 ## 🖥️ Menu Preview
 
-![Expense Tracker Menu](screenshots/terminal.png)
+![Expense Tracker Menu](expense_tracker/screenshots/terminal.png)
 
 *(The image above shows the actual menu as seen in the terminal.)*
 
@@ -44,11 +44,11 @@ A terminal-based Expense Tracker application built with Python and SQLite. It al
 
 ### Category Distribution
 
-![Category Pie Chart](screenshots/category_chart.png)
+![Category Pie Chart](expense_tracker/screenshots/category_chart.png)
 
 ### Monthly Expenses
 
-![Monthly Bar Chart](screenshots/monthly_expenses.png)
+![Monthly Bar Chart](expense_tracker/screenshots/monthly_expenses.png)
 
 ---
 
