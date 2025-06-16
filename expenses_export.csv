@@ -1,7 +1,15 @@
 ID,Date,Description,Amount,Category
 1,2025.06.14,Cat litter,245.0,Petshop
+11,2025.04.18,Clothes,1500.0,Shopping
 6,2025-06-16,Course,400.0,Udemy
 3,2025-06-15,Cigarette,85.0,Tobacco
 4,2025-06-15,Dinner,365.0,Food
 2,2025-06-14,Fridge restock,500.0,Grocery
 5,2025-06-13,Cigarette,170.0,Tobacco
+8,2025-05-07,Books,400.0,Education
+7,2025-05-02,Daily needs,200.0,Grocery
+10,2025-04-10,Nail appointment,900.0,Barber
+9,2025-04-05,Fridge stock,600.0,Grocery
+14,2025-03-20,Holiday,1000.0,Travel
+13,2025-03-12,Cat care,3000.0,Vet
+12,2025-03-09,Cigarette,170.0,Tobacco
